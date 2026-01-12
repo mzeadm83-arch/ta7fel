@@ -1,120 +1,106 @@
-import os
-import asyncio
 from telethon import TelegramClient, events, Button
-from telethon.errors import SessionPasswordNeededError
+from telethon.tl.functions.channels import GetParticipantRequest
+from telethon.errors import UserNotParticipantError
+import asyncio
+import os
 
-# --- البيانات اللي أنت بعتها ---
-API_ID = 21516763
-API_HASH = '4d9d669e34f495934b4497a4001b1bd3'
-BOT_TOKEN = '8103225505:AAFYolYC8BnOUIQJQ8sIkuZAoZWr6h_vfBo'
-# ----------------------------
+# --- إعدادات الحساب ---
+api_id = 24911514 
+api_hash = 'f9f38f141846b0d912952467f5a9f5d3'
+CH_USERNAME = 'x_b_rn' 
 
-async def main():
-    # تشغيل البوت
-    bot = TelegramClient('bot_manager', API_ID, API_HASH)
-    await bot.start(bot_token=BOT_TOKEN)
+client = TelegramClient('session_name', api_id, api_hash)
 
-    if not os.path.exists('sessions'):
-        os.makedirs('sessions')
+# دالة التحقق من الاشتراك
+async def check_subscribe(user_id):
+    try:
+        await client(GetParticipantRequest(channel=CH_USERNAME, participant=user_id))
+        return True
+    except UserNotParticipantError:
+        return False
+    except Exception:
+        return True
 
-    @bot.on(events.NewMessage(pattern='/start'))
-    async def start(event):
-        sender = await event.get_sender()
-        first_name = sender.first_name if sender.first_name else "يا حب"
-        
-        welcome_msg = (
-            f"اهلا بيك يا {first_name} يا اخويا نورت البوت\n\n"
-            "بوت للناس بتاعت المجال و الناس بتاعت النشر التلقاءي شوف انت داخل هنا لية و اتعامل\n"
-            "دوس على زرار '📖 إرشادات الاستخدام' عشان تعرف تعمل إيه.\n\n"
-            "لو محتاج اي مساعدة ابعتلي @uvvvrn و انا معاك"
+# --- قائمة الأزرار الرئيسية ---
+main_buttons = [
+    [Button.inline("القسم الأول 1️⃣", data="section1"), Button.inline("القسم الثاني 2️⃣", data="section2")],
+    [Button.inline("🚀 التحفيل 🚀", data="tahfel_info"), Button.inline("🎫 التساكر 🎫", data="tickets_list")],
+    [Button.url("قناة البوت", url=f"https://t.me/{CH_USERNAME}")]
+]
+
+@client.on(events.NewMessage(pattern='/start'))
+async def start(event):
+    user_id = event.sender_id
+    if not await check_subscribe(user_id):
+        return await event.reply(
+            f"**⚠️ عذراً عزيزي، يجب عليك الاشتراك في القناة أولاً!**\n\nقناتنا: @{CH_USERNAME}",
+            buttons=[Button.url("اضغط هنا للاشتراك", url=f"https://t.me/{CH_USERNAME}")]
         )
+    await event.reply("**نورت يا حبي ⚡**\n\nإليك قائمة التحكم الخاصة بك:", buttons=main_buttons)
 
-        buttons = [
-            [Button.inline("➕ ربط حسابك بالتليجرام", b"login")],
-            [Button.inline("🚀 النشر التلقائي", b"auto_post"), Button.inline("📖 إرشادات الاستخدام", b"guide")],
-            [Button.inline("🔒 خيار 3", b"3"), Button.inline("🔒 خيار 4", b"4")],
-            [Button.inline("🔒 خيار 5", b"5"), Button.inline("🔒 خيار 6", b"6")]
-        ]
-        await event.respond(welcome_msg, buttons=buttons)
+# --- معالجة الضغط على الأزرار ---
+@client.on(events.CallbackQuery)
+async def callback(event):
+    user_id = event.sender_id
+    if not await check_subscribe(user_id):
+        return await event.answer("⚠️ اشترك في القناة أولاً!", alert=True)
 
-    @bot.on(events.CallbackQuery(data=b"guide"))
-    async def guide_handler(event):
-        guide_text = (
-            "بص يا حبيب أخوك، الموضوع سهل خالص:\n\n"
-            "1️⃣ دوس على (ربط حسابك)، واكتب رقمك بمفتاح الدولة (+20...)\n"
-            "2️⃣ هيجيلك كود من تليجرام، ابعته هنا للبوت.\n"
-            "3️⃣ لو في باسورد (تحقق بخطوتين) اكتبه.\n"
-            "4️⃣ بعد الربط، ادخل على (النشر التلقائي) وحدد الرسالة والمكان."
+    # قسم معلومات الإرسال (التحفيل سابقاً في الداخل)
+    if event.data == b'tahfel_info':
+        text = (
+            "**✨ أنورت يا اخويا ✨**\n\n"
+            "هنا تقدر تكرر الرسايل براحتك.\n"
+            "**طريقة الاستخدام:**\n"
+            "ابعت الأمر كالتالي:\n"
+            "`.تحفيل` (العدد) (نص الرسالة)\n\n"
+            "**مثال:**\n"
+            "`.تحفيل 100 صباح الخير`"
         )
-        await event.respond(guide_text, buttons=[Button.inline("فهمت يا حب ✅", b"back_to_start")])
+        await event.edit(text, buttons=[Button.inline("⬅️ رجوع", data="back")])
 
-    @bot.on(events.CallbackQuery(data=b"back_to_start"))
-    async def back_to_start(event):
-        await start(event)
-
-    @bot.on(events.CallbackQuery(data=b"login"))
-    async def login_handler(event):
-        sender_id = event.sender_id
-        async with bot.conversation(sender_id) as conv:
-            await conv.send_message("📱 ابعت رقمك دلوقتي بمفتاح الدولة (مثلاً +2010...):")
-            phone = (await conv.get_response()).text
-            
-            client = TelegramClient(f"sessions/{sender_id}", API_ID, API_HASH)
-            await client.connect()
-            
-            try:
-                await client.send_code_request(phone)
-                await conv.send_message("📩 كود التليجرام وصلك.. ابعتهولي هنا:")
-                code = (await conv.get_response()).text
-                await client.sign_in(phone, code)
-            except SessionPasswordNeededError:
-                await conv.send_message("🔐 حسابك متأمن.. ابعت باسورد التحقق بخطوتين:")
-                pwd = (await conv.get_response()).text
-                await client.sign_in(password=pwd)
-            except Exception as e:
-                await conv.send_message(f"❌ حصلت مشكلة: {str(e)}")
-                return
-            
-            await conv.send_message("✅ عااش يا وحش، حسابك اتصطب بنجاح!")
-            await client.disconnect()
-
-    @bot.on(events.CallbackQuery(data=b"auto_post"))
-    async def auto_post(event):
-        sender_id = event.sender_id
-        session_path = f"sessions/{sender_id}.session"
+    # قائمة الملفات (التساكر سابقاً في الداخل)
+    elif event.data == b'tickets_list':
+        path = "./tickets"
+        if not os.path.exists(path) or not os.listdir(path):
+            return await event.answer("❌ مفيش ملفات متاحة حالياً!", alert=True)
         
-        if not os.path.exists(session_path):
-            await event.respond("❌ يا غالي اربط حسابك الأول من زرار (ربط حسابك).")
-            return
+        files = os.listdir(path)
+        buttons = []
+        for file_name in files[:10]: 
+            buttons.append([Button.inline(f"📄 {file_name}", data=f"send_file:{file_name}")])
+        
+        buttons.append([Button.inline("⬅️ رجوع", data="back")])
+        await event.edit("**📂 اختر الملف اللي محتاجه:**", buttons=buttons)
 
-        async with bot.conversation(sender_id) as conv:
-            await conv.send_message("📝 اكتب الرسالة اللي عايزها تتكرر:")
-            text = (await conv.get_response()).text
-            
-            await conv.send_message("🆔 ابعت يوزر الجروب أو الشخص (مثلاً @username):")
-            target = (await conv.get_response()).text
-            
-            await conv.send_message("🔢 عايز تبعتها كام مرة؟")
-            count_text = (await conv.get_response()).text
-            count = int(count_text) if count_text.isdigit() else 1
+    # إرسال الملف المختار
+    elif event.data.startswith(b'send_file:'):
+        file_name = event.data.decode().split(':')[1]
+        file_path = f"./tickets/{file_name}"
+        await event.answer("⏳ جاري إرسال الملف...", alert=False)
+        await client.send_file(event.chat_id, file_path, caption=f"✅ تم استخراج ملف: `{file_name}`")
 
-            await conv.send_message("⏳ جاري بدء الإرسال من حسابك...")
-            
-            user_client = TelegramClient(session_path, API_ID, API_HASH)
-            await user_client.connect()
-            
-            for i in range(count):
-                try:
-                    await user_client.send_message(target, text)
-                    await asyncio.sleep(4)
-                except:
-                    break
-                
-            await conv.send_message(f"✅ تم الإرسال {count} مرات بنجاح.")
-            await user_client.disconnect()
+    elif event.data == b'back':
+        await event.edit("**القائمة الرئيسية:**", buttons=main_buttons)
 
-    print("البوت شغال زي الفل دلوقتي.. جرب افتح تليجرام.")
-    await bot.run_until_disconnected()
+# --- كود تكرار الرسائل ---
+@client.on(events.NewMessage(pattern=r'^\.تحفيل (\d+) (.+)'))
+async def tahfel_handler(event):
+    if not await check_subscribe(event.sender_id):
+        return await event.reply(f"**❌ اشترك أولاً: @{CH_USERNAME}**")
 
-if __name__ == '__main__':
-    asyncio.run(main())
+    count = int(event.pattern_match.group(1))
+    message_to_send = event.pattern_match.group(2)
+    
+    status_msg = await event.reply(f"⏳ لحظات وهيتم إرسال {count} رسالة...")
+
+    for i in range(count):
+        try:
+            await client.send_message(event.chat_id, message_to_send)
+            await asyncio.sleep(0.05) 
+        except Exception: break
+    await status_msg.edit(f"✅ فل عليك يا معلم، تم إرسال {count} رسالة بنجاح!")
+
+# --- تشغيل البوت ---
+print("البوت يعمل الآن...")
+client.start()
+client.run_until_disconnected()
